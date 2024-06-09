@@ -1,5 +1,5 @@
 import { useAppLoading } from './useAppLoading.ts'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { defaultPosts, Comment, Post } from '../constants/posts.ts'
 import { getPostsFromLocalStorage, savePostsToLocalStorage } from '../utils/localStorage.ts'
@@ -21,39 +21,21 @@ export function useAppController() {
    * @param {string} postId - The ID of the post to update.
    * @param {Comment[]} updatedComments - The updated comments array.
    */
-  const updatePostComments = (postId: string, updatedComments: Comment[]) => {
+  const updatePostComments = useCallback((postId: string, updatedComments: Comment[]) => {
     setPosts(prevPosts => {
       const updatedPosts = prevPosts.map(post => {
         if (post.id === postId) {
-          return { ...post, comments: updatedComments }
+          return {
+            ...post,
+            comments: updatedComments
+          }
         }
         return post
       })
       savePostsToLocalStorage(updatedPosts)
       return updatedPosts
     })
-  }
-
-  /**
-   * Adds a reply to a specific comment.
-   *
-   * @param {string} postId - The ID of the post containing the comment.
-   * @param {string} commentId - The ID of the comment to reply to.
-   * @param {Comment} newReply - The new reply to add.
-   */
-  const addReplyToComment = (postId: string, commentId: string, newReply: Comment) => {
-    setPosts(prevPosts => {
-      const updatedPosts = prevPosts.map(post => {
-        if (post.id === postId) {
-          const updatedComments = updateCommentReplies(post.comments, commentId, newReply)
-          return { ...post, comments: updatedComments }
-        }
-        return post
-      })
-      savePostsToLocalStorage(updatedPosts)
-      return updatedPosts
-    })
-  }
+  }, [])
 
   /**
    * Recursively updates the replies of a specific comment.
@@ -63,34 +45,45 @@ export function useAppController() {
    * @param {Comment} newReply - The new reply to add.
    * @returns The updated comments array.
    */
-  const updateCommentReplies = (comments: Comment[], commentId: string, newReply: Comment): Comment[] => {
+  const updateCommentReplies = useCallback((comments: Comment[], commentId: string, newReply: Comment): Comment[] => {
     return comments.map(comment => {
       if (comment.id === commentId) {
-        return { ...comment, replies: [...comment.replies, newReply] }
+        return {
+          ...comment,
+          replies: [...comment.replies, newReply]
+        }
       }
-      return { ...comment, replies: updateCommentReplies(comment.replies, commentId, newReply) }
+      return {
+        ...comment,
+        replies: updateCommentReplies(comment.replies, commentId, newReply)
+      }
     })
-  }
+  }, [])
 
   /**
-   * Deletes a comment from a post.
+   * Adds a reply to a specific comment.
    *
-   * @param {string} postId - The ID of the post from which the comment will be deleted.
-   * @param {string} commentId - The ID of the comment to be deleted.
+   * @param {string} postId - The ID of the post containing the comment.
+   * @param {string} commentId - The ID of the comment to reply to.
+   * @param {Comment} newReply - The new reply to add.
    */
-  const deleteComment = (postId: string, commentId: string) => {
+  const addReplyToComment = useCallback((postId: string, commentId: string, newReply: Comment) => {
     setPosts(prevPosts => {
       const updatedPosts = prevPosts.map(post => {
         if (post.id === postId) {
-          const updatedComments = deleteCommentReplies(post.comments, commentId)
-          return { ...post, comments: updatedComments }
+          const updatedComments = updateCommentReplies(post.comments, commentId, newReply)
+          return {
+            ...post,
+            comments: updatedComments
+          }
         }
         return post
       })
       savePostsToLocalStorage(updatedPosts)
       return updatedPosts
     })
-  }
+  }, [updateCommentReplies])
+
 
   /**
    * Recursively deletes a comment and its replies from an array of comments.
@@ -99,7 +92,7 @@ export function useAppController() {
    * @param {string} commentId - The ID of the comment to be deleted.
    * @returns The updated array of comments after deletion.
    */
-  const deleteCommentReplies = (comments: Comment[], commentId: string): Comment[] => {
+  const deleteCommentReplies = useCallback((comments: Comment[], commentId: string): Comment[] => {
     return comments.reduce((acc: Comment[], comment) => {
       if (comment.id === commentId) {
         // Exclude the comment to be deleted
@@ -107,9 +100,35 @@ export function useAppController() {
       }
       // Recursively delete the comment from replies
       const updatedReplies = deleteCommentReplies(comment.replies, commentId);
-      return [...acc, { ...comment, replies: updatedReplies }]
+      return [
+        ...acc,
+        { ...comment, replies: updatedReplies }
+      ]
     }, [])
-  }
+  }, [])
+
+  /**
+   * Deletes a comment from a post.
+   *
+   * @param {string} postId - The ID of the post from which the comment will be deleted.
+   * @param {string} commentId - The ID of the comment to be deleted.
+   */
+  const deleteComment = useCallback((postId: string, commentId: string) => {
+    setPosts(prevPosts => {
+      const updatedPosts = prevPosts.map(post => {
+        if (post.id === postId) {
+          const updatedComments = deleteCommentReplies(post.comments, commentId)
+          return {
+            ...post,
+            comments: updatedComments
+          }
+        }
+        return post
+      })
+      savePostsToLocalStorage(updatedPosts)
+      return updatedPosts
+    })
+  }, [deleteCommentReplies])
 
   useEffect(() => {
     if (!didInit) {
